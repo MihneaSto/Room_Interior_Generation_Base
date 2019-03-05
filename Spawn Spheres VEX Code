@@ -1,0 +1,110 @@
+//get iteration for debuging purposes
+float iter = @Frame;
+
+//random point fromm all the available as a start each time
+int randPt = int(fit01(rand(@numpt), 0, @numpt));
+
+//get color of intitial point 0 
+float max = point(0, "Cd", randPt);
+//init point number storing
+int pt = randPt;
+
+//get the max color value(distance to the path) from all the points
+for(int i=0; i<@numpt; i++){
+
+    float space = point(geoself(), "radius", i);
+
+    if(space == 0){
+        vector currCd = point(0, "Cd", i);
+
+        if(currCd > max){
+            max = currCd;
+            pt = i; 
+        }
+    }
+}
+
+//make sure that the system found a different point that the one that it was found at the beginning to avoid
+//spawning a sphere on the same point over and over again if there is no more empty area
+if(pt != randPt){
+
+    /////////////////////////////////////
+    //cap radius of sphere to a random radius that matches
+    //one of the assets in the library to make sure that no huge empty sphere will spawn
+    float thresh[] = detail(3, "count");
+    
+    float random = rand(iter+pt);
+    
+    //fit the radius between the highest and the mid high radius asset in the libray
+    //to try to maximize area covered
+    int index = int(rint(fit01(random, len(thresh)/2*0, len(thresh))));
+    
+    float cap = thresh[index]/100000;
+    
+    if(max > cap){
+        max = cap*2;
+    }
+    /////////////////////////////////////
+    
+    //init radius variable
+    float rad = max/2;
+    
+    //set "radius" attrib for pt
+    setpointattrib(0, "radius", pt, rad);
+    
+    //create sphere prim
+    int area = addprim(0, "sphere", pt);
+    
+    /////////////////////////////////////////////////////////////////////
+    //init ident intrinsic matrix and apply intrinsic transforms
+    matrix3 intrin = ident();
+    
+    //init transform matrix
+    vector scale = {1,1,1};
+    scale[0] = rad; scale[1] = rad; scale[2] = rad;
+    
+    vector pos = {0,0,0};
+    
+    matrix areaTrans = maketransform(0, 0, {0,0,0}, {0,0,0}, scale, pos); 
+    
+    intrin *= matrix3(areaTrans);
+    
+    float angle = radians(90);
+    rotate(intrin, angle, {1,0,0});
+    
+    //set intrinsic transforms
+    setprimintrinsic(0, "transform", area, intrin);
+    /////////////////////////////////////////////////////////////////////
+    //get N of pt where the sphere spawns
+    vector N = point(0, "N", pt);
+    vector P = point(0, "P", pt);
+    
+    //move point closer to the path along the N to make sure that it does not
+    //go outside of the bounds
+    vector newPos = P + (rad + randRad-0.2) * N;
+    
+    setpointattrib(0, "P", pt, newPos);
+    
+    /////////////////////////////////////////////////////////////////////
+    //radius at which to search for deleting points around the sphere that spawns
+    float multRad = chf("multRad");
+    
+    rad *= multRad;
+    
+    //delete points encapsulated in the sphere
+    int pcloud[];
+    pcloud = pcfind(0, "P", newPos, rad, 9999);
+    
+    //check for area if you want to make sure that the new spheres do NOT overlap
+    for(int k=0; k<len(pcloud); k++){
+    
+        float radCheck = point(geoself(), "radius", pcloud[k]);
+    
+        if(radCheck == 0){        
+            if(pcloud[k] != pt){
+            
+                removepoint(geoself(), pcloud[k]);
+            }
+        }
+    }
+}
